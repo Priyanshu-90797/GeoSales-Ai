@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import joblib
@@ -7,53 +6,40 @@ from sklearn.linear_model import LinearRegression
 
 st.set_page_config(page_title="GeoSales AI", layout="wide")
 
-# ---------------- PREMIUM UI ----------------
+# ---------------- UI ----------------
 st.markdown("""
 <style>
 .stApp {
     background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
     color: white;
 }
-
 div[data-testid="metric-container"] {
     background: rgba(255,255,255,0.05);
     border-radius: 15px;
     padding: 15px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-section[data-testid="stSidebar"] {
-    background: rgba(0,0,0,0.3);
-}
-
-button[kind="primary"] {
-    background: linear-gradient(90deg,#00c6ff,#0072ff);
-    border-radius: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- TITLE ----------------
 st.markdown("<h1 style='text-align:center;'>🚀 GeoSales AI Dashboard</h1>", unsafe_allow_html=True)
-st.caption("AI-powered Sales Analytics & Forecasting")
 
 # ---------------- DATA ----------------
-df = pd.read_csv("sales_data.csv", encoding='latin1')
+df = pd.read_csv("data/sales_data.csv", encoding='latin1')
+
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
 df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True)
 df['month'] = df['order_date'].dt.month
 df['year'] = df['order_date'].dt.year
 
-# ---------------- SIDEBAR ----------------
+# ---------------- FILTERS ----------------
 st.sidebar.title("🔍 Filters")
 region = st.sidebar.selectbox("Region", df['region'].unique())
 category = st.sidebar.selectbox("Category", df['category'].unique())
 
 filtered_df = df[(df['region']==region) & (df['category']==category)]
 
-st.caption(f"📍 Showing: {region} | {category}")
+st.caption(f"📍 {region} | {category}")
 
 # ---------------- KPI ----------------
 prev_sales = df['sales'].sum() * 0.9
@@ -74,7 +60,7 @@ c3.metric("📦 Orders", orders)
 
 st.markdown("---")
 
-# ---------------- REGION COMPARISON ----------------
+# ---------------- REGION GRAPH ----------------
 st.subheader(f"📊 Sales vs Profit by Region ({category})")
 
 chart_df = df[df['category']==category]
@@ -101,7 +87,7 @@ fig.update_layout(template="plotly_dark",
                   plot_bgcolor="rgba(0,0,0,0)")
 st.plotly_chart(fig,use_container_width=True)
 
-# ---------------- FORECAST (FIXED) ----------------
+# ---------------- FORECAST ----------------
 st.subheader("🔮 Future Forecast")
 
 monthly_full = filtered_df.groupby('month')['sales'].sum().reset_index()
@@ -113,10 +99,7 @@ if len(monthly_full) > 3:
     future = pd.DataFrame({'month':[13,14,15]})
     pred = model_f.predict(future)
 
-    forecast_df = pd.DataFrame({
-        "month":[13,14,15],
-        "forecast":pred
-    })
+    forecast_df = pd.DataFrame({'month':[13,14,15],'forecast':pred})
 
     monthly_full['type'] = "Actual"
     forecast_df['type'] = "Forecast"
@@ -126,35 +109,25 @@ if len(monthly_full) > 3:
         forecast_df.rename(columns={'forecast':'value'})
     ])
 
-    fig = px.line(combined, x='month', y='value', color='type', markers=True)
+    fig = px.line(combined,x='month',y='value',color='type',markers=True)
     fig.update_layout(template="plotly_dark",
                       paper_bgcolor="rgba(0,0,0,0)",
                       plot_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig,use_container_width=True)
-
 else:
-    st.warning("Not enough data for forecasting")
+    st.warning("Not enough data")
 
 # ---------------- INSIGHTS ----------------
-st.markdown("## 💡 Business Insights")
+st.subheader("💡 Insights")
 
 best_region = df.groupby('region')['profit'].sum().idxmax()
 worst_region = df.groupby('region')['profit'].sum().idxmin()
-growth = ((total_sales-prev_sales)/prev_sales)*100
 
-st.markdown(f"""
-<div style='background: rgba(255,255,255,0.05);
-padding:20px;border-radius:15px;'>
+st.success(f"Best Region: {best_region}")
+st.error(f"Worst Region: {worst_region}")
 
-🔥 Best Region: {best_region}<br><br>
-⚠️ Worst Region: {worst_region}<br><br>
-📈 Growth: {growth:.2f}%  
-
-</div>
-""",unsafe_allow_html=True)
-
-# ---------------- MODEL ----------------
-model = joblib.load("model/sales_model.pkl")
+# ---------------- MODEL (FIXED PATH) ----------------
+model = joblib.load("model/xgb_sales_model.pkl")
 cols = joblib.load("model/model_columns.pkl")
 
 # ---------------- FEATURE ----------------
@@ -168,10 +141,8 @@ fig.update_layout(template="plotly_dark",
                   plot_bgcolor="rgba(0,0,0,0)")
 st.plotly_chart(fig,use_container_width=True)
 
-st.info("💡 Profit has highest impact on sales prediction")
-
 # ---------------- AI ----------------
-st.markdown("## 🤖 AI Sales Prediction Engine")
+st.subheader("🤖 AI Prediction")
 
 c1,c2,c3 = st.columns(3)
 
@@ -188,6 +159,6 @@ input_df = pd.DataFrame({
 
 input_df = input_df.reindex(columns=cols,fill_value=0)
 
-if st.button("Predict Sales"):
+if st.button("Predict"):
     result = model.predict(input_df)
-    st.success(f"💰 Predicted Sales: {result[0]:.2f}")
+    st.success(f"Predicted Sales: {result[0]:.2f}") 
