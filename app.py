@@ -39,7 +39,7 @@ st.markdown("<h1 style='text-align:center;'>🚀 GeoSales AI Dashboard</h1>", un
 st.caption("AI-powered Sales Analytics & Forecasting")
 
 # ---------------- DATA ----------------
-df = pd.read_csv("data/sales_data.csv", encoding='latin1')
+df = pd.read_csv("sales_data.csv", encoding='latin1')
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
 df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True)
