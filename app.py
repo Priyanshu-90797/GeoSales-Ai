@@ -1,6 +1,5 @@
 import os
 
-# 🔥 Fix for Streamlit deployment (auto install missing libs)
 os.system("pip install joblib scikit-learn")
 
 import streamlit as st
