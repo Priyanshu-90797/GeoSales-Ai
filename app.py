@@ -1,156 +1,154 @@
 import streamlit as st
 import pandas as pd
-import joblib
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
-import os
 
+# -------------------------
+# CONFIG
+# -------------------------
 st.set_page_config(page_title="GeoSales AI", layout="wide")
 
-# ---------------- UI ----------------
+# -------------------------
+# CSS
+# -------------------------
 st.markdown("""
 <style>
-.stApp {
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    color: white;
-}
-div[data-testid="metric-container"] {
+body {background: linear-gradient(to right, #0e1117, #1c1f26);}
+.card {
     background: rgba(255,255,255,0.05);
+    padding: 20px;
     border-radius: 15px;
-    padding: 15px;
+    text-align: center;
 }
+.big {font-size: 30px; font-weight: bold; color: #00ffcc;}
+.title {text-align:center; font-size:40px; font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align:center;'>🚀 GeoSales AI Dashboard</h1>", unsafe_allow_html=True)
+# -------------------------
+# TITLE
+# -------------------------
+st.markdown("<div class='title'>🚀 GeoSales AI Dashboard + Chatbot</div>", unsafe_allow_html=True)
 
-# ---------------- PATHS ----------------
-BASE_DIR = os.getcwd()
-
-data_path = os.path.join(BASE_DIR, "sales_data.csv")
-model_path = os.path.join(BASE_DIR, "model", "xgb_sales_model.pkl")
-cols_path = os.path.join(BASE_DIR, "model", "model_columns.pkl")
-
-# ---------------- DATA ----------------
-if not os.path.exists(data_path):
-    st.error("❌ sales_data.csv not found in repo")
-    st.stop()
-
-df = pd.read_csv(data_path, encoding='latin1')
+# -------------------------
+# LOAD DATA
+# -------------------------
+df = pd.read_csv("data/sales_data.csv", encoding='latin1')
 
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
-
 df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True)
 df['month'] = df['order_date'].dt.month
 df['year'] = df['order_date'].dt.year
 
-# ---------------- FILTERS ----------------
-st.sidebar.title("🔍 Filters")
-region = st.sidebar.selectbox("Region", df['region'].unique())
-category = st.sidebar.selectbox("Category", df['category'].unique())
+# -------------------------
+# FILTERS
+# -------------------------
+st.sidebar.title("⚙️ Filters")
 
-filtered_df = df[(df['region']==region) & (df['category']==category)]
+region = st.sidebar.selectbox("Region", ["All"] + list(df['region'].unique()))
+category = st.sidebar.selectbox("Category", ["All"] + list(df['category'].unique()))
 
-st.caption(f"📍 {region} | {category}")
+filtered_df = df.copy()
 
-# ---------------- KPI ----------------
-prev_sales = df['sales'].sum() * 0.9
-prev_profit = df['profit'].sum() * 0.9
+if region != "All":
+    filtered_df = filtered_df[filtered_df['region'] == region]
 
-total_sales = filtered_df['sales'].sum()
-total_profit = filtered_df['profit'].sum()
-orders = filtered_df.shape[0]
+if category != "All":
+    filtered_df = filtered_df[filtered_df['category'] == category]
 
-sales_change = ((total_sales-prev_sales)/prev_sales)*100
-profit_change = ((total_profit-prev_profit)/prev_profit)*100
+# -------------------------
+# KPI CARDS
+# -------------------------
+col1, col2, col3 = st.columns(3)
 
-c1,c2,c3 = st.columns(3)
-
-c1.metric("💰 Sales", int(total_sales), f"{sales_change:.2f}%")
-c2.metric("📈 Profit", int(total_profit), f"{profit_change:.2f}%")
-c3.metric("📦 Orders", orders)
+col1.markdown(f"<div class='card'><div>Total Sales</div><div class='big'>₹ {int(filtered_df['sales'].sum())}</div></div>", unsafe_allow_html=True)
+col2.markdown(f"<div class='card'><div>Total Profit</div><div class='big'>₹ {int(filtered_df['profit'].sum())}</div></div>", unsafe_allow_html=True)
+col3.markdown(f"<div class='card'><div>Orders</div><div class='big'>{filtered_df.shape[0]}</div></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
-# ---------------- REGION GRAPH ----------------
-st.subheader(f"📊 Sales vs Profit by Region ({category})")
+# -------------------------
+# GRAPH SECTION
+# -------------------------
+col1, col2 = st.columns(2)
 
-chart_df = df[df['category']==category]
+with col1:
+    st.subheader("📊 Sales vs Profit Trend")
+    trend = filtered_df.groupby('month')[['sales','profit']].sum().reset_index()
+    fig = px.line(trend, x='month', y=['sales','profit'], markers=True)
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-sales_r = chart_df.groupby('region')['sales'].sum().reset_index()
-profit_r = chart_df.groupby('region')['profit'].sum().reset_index()
+with col2:
+    st.subheader("📦 Category Sales")
+    cat = filtered_df.groupby('category')['sales'].sum().reset_index()
+    fig = px.bar(cat, x='category', y='sales', color='category')
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-merged = sales_r.merge(profit_r,on='region')
+col1, col2 = st.columns(2)
 
-fig = px.line(merged,x='region',y=['sales','profit'],markers=True)
-st.plotly_chart(fig,use_container_width=True)
+with col1:
+    st.subheader("🌍 Region Distribution")
+    reg = filtered_df.groupby('region')['sales'].sum().reset_index()
+    fig = px.pie(reg, names='region', values='sales')
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-# ---------------- MONTHLY ----------------
-st.subheader("📈 Monthly Trend")
+with col2:
+    st.subheader("📈 Monthly Trend")
+    monthly = filtered_df.groupby('month')['sales'].sum().reset_index()
+    fig = px.line(monthly, x='month', y='sales', markers=True)
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-monthly = filtered_df.groupby('month')['sales'].sum().reset_index()
+col1, col2 = st.columns(2)
 
-fig = px.line(monthly,x='month',y='sales',markers=True)
-st.plotly_chart(fig,use_container_width=True)
+with col1:
+    st.subheader("📉 Profit vs Discount")
+    fig = px.scatter(filtered_df, x='discount', y='profit', color='category')
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-# ---------------- FORECAST ----------------
-st.subheader("🔮 Future Forecast")
+with col2:
+    st.subheader("📆 Yearly Growth")
+    yearly = filtered_df.groupby('year')['sales'].sum().reset_index()
+    fig = px.line(yearly, x='year', y='sales', markers=True)
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-monthly_full = filtered_df.groupby('month')['sales'].sum().reset_index()
+# -------------------------
+# INSIGHTS
+# -------------------------
+st.subheader("💡 Smart Insights")
 
-if len(monthly_full) > 3:
-    model_f = LinearRegression()
-    model_f.fit(monthly_full[['month']], monthly_full['sales'])
+if not filtered_df.empty:
+    best_region = filtered_df.groupby('region')['sales'].sum().idxmax()
+    st.success(f"🔥 {best_region} is the top-performing region.")
 
-    future = pd.DataFrame({'month':[13,14,15]})
-    pred = model_f.predict(future)
+# -------------------------
+# CHATBOT SECTION
+# -------------------------
+st.markdown("---")
+st.subheader("🤖 GeoSales AI Chatbot")
 
-    forecast_df = pd.DataFrame({'month':[13,14,15],'forecast':pred})
+user_input = st.text_input("Ask your question about sales...")
 
-    fig = px.line(forecast_df,x='month',y='forecast',markers=True)
-    st.plotly_chart(fig,use_container_width=True)
-else:
-    st.warning("Not enough data")
+if user_input:
+    query = user_input.lower()
 
-# ---------------- MODEL SAFE LOAD ----------------
-model_loaded = True
+    if "total sales" in query:
+        st.write(f"💰 Total Sales: ₹ {int(filtered_df['sales'].sum())}")
 
-if not os.path.exists(model_path) or not os.path.exists(cols_path):
-    st.warning("⚠️ Model files not found in deployment")
-    model_loaded = False
-else:
-    model = joblib.load(model_path)
-    cols = joblib.load(cols_path)
+    elif "profit" in query:
+        st.write(f"📈 Total Profit: ₹ {int(filtered_df['profit'].sum())}")
 
-# ---------------- FEATURE ----------------
-if model_loaded:
-    st.subheader("🧠 Feature Importance")
+    elif "best region" in query:
+        best_region = filtered_df.groupby('region')['sales'].sum().idxmax()
+        st.write(f"🏆 Best Region: {best_region}")
 
-    imp = pd.Series(model.feature_importances_,index=cols).sort_values()
-    fig = px.bar(imp,orientation='h')
-    st.plotly_chart(fig,use_container_width=True)
+    elif "orders" in query:
+        st.write(f"📦 Total Orders: {filtered_df.shape[0]}")
 
-# ---------------- AI ----------------
-st.subheader("🤖 AI Prediction")
-
-if model_loaded:
-    c1,c2,c3 = st.columns(3)
-
-    month = c1.slider("Month",1,12,5)
-    profit = c2.number_input("Profit",100.0)
-    discount = c3.number_input("Discount",0.1)
-
-    input_df = pd.DataFrame({
-        'month':[month],
-        'year':[2023],
-        'profit':[profit],
-        'discount':[discount]
-    })
-
-    input_df = input_df.reindex(columns=cols,fill_value=0)
-
-    if st.button("Predict"):
-        result = model.predict(input_df)
-        st.success(f"Predicted Sales: {result[0]:.2f}")
-else:
-    st.info("Prediction disabled (model missing)")  
+    else:
+        st.write("🤖 Sorry, I can answer questions about sales, profit, region, and orders.")
