@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
+import os
 
 st.set_page_config(page_title="GeoSales AI", layout="wide")
 
@@ -23,8 +24,18 @@ div[data-testid="metric-container"] {
 
 st.markdown("<h1 style='text-align:center;'>🚀 GeoSales AI Dashboard</h1>", unsafe_allow_html=True)
 
-# ---------------- DATA ----------------
-df = pd.read_csv("data/sales_data.csv", encoding='latin1')
+# ---------------- SAFE BASE PATH ----------------
+BASE_DIR = os.getcwd()
+
+# 👉 DATA (root me hai)
+data_path = os.path.join(BASE_DIR, "sales_data.csv")
+
+# 👉 MODEL (model folder me hai)
+model_path = os.path.join(BASE_DIR, "model", "xgb_sales_model.pkl")
+cols_path = os.path.join(BASE_DIR, "model", "model_columns.pkl")
+
+# ---------------- DATA LOAD ----------------
+df = pd.read_csv(data_path, encoding='latin1')
 
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
@@ -126,9 +137,9 @@ worst_region = df.groupby('region')['profit'].sum().idxmin()
 st.success(f"Best Region: {best_region}")
 st.error(f"Worst Region: {worst_region}")
 
-# ---------------- MODEL (FIXED PATH) ----------------
-model = joblib.load("model/xgb_sales_model.pkl")
-cols = joblib.load("model/model_columns.pkl")
+# ---------------- MODEL LOAD ----------------
+model = joblib.load(model_path)
+cols = joblib.load(cols_path)
 
 # ---------------- FEATURE ----------------
 st.subheader("🧠 Feature Importance")
@@ -161,4 +172,4 @@ input_df = input_df.reindex(columns=cols,fill_value=0)
 
 if st.button("Predict"):
     result = model.predict(input_df)
-    st.success(f"Predicted Sales: {result[0]:.2f}") 
+    st.success(f"Predicted Sales: {result[0]:.2f}")  
