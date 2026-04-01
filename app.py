@@ -28,7 +28,7 @@ body {background: linear-gradient(to right, #0e1117, #1c1f26);}
 # -------------------------
 # TITLE
 # -------------------------
-st.markdown("<div class='title'>🚀 GeoSales AI Dashboard + Chatbot</div>", unsafe_allow_html=True)
+st.markdown("<div class='title'>🚀 GeoSales AI Dashboard </div>", unsafe_allow_html=True)
 
 # -------------------------
 # LOAD DATA
