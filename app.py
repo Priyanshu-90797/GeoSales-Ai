@@ -24,17 +24,14 @@ div[data-testid="metric-container"] {
 
 st.markdown("<h1 style='text-align:center;'>🚀 GeoSales AI Dashboard</h1>", unsafe_allow_html=True)
 
-# ---------------- SAFE BASE PATH ----------------
+# ---------------- PATHS ----------------
 BASE_DIR = os.getcwd()
 
-# 👉 DATA (root me hai)
 data_path = os.path.join(BASE_DIR, "sales_data.csv")
-
-# 👉 MODEL (model folder me hai)
 model_path = os.path.join(BASE_DIR, "model", "xgb_sales_model.pkl")
 cols_path = os.path.join(BASE_DIR, "model", "model_columns.pkl")
 
-# ---------------- DATA LOAD ----------------
+# ---------------- DATA ----------------
 df = pd.read_csv(data_path, encoding='latin1')
 
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
@@ -53,20 +50,14 @@ filtered_df = df[(df['region']==region) & (df['category']==category)]
 st.caption(f"📍 {region} | {category}")
 
 # ---------------- KPI ----------------
-prev_sales = df['sales'].sum() * 0.9
-prev_profit = df['profit'].sum() * 0.9
-
 total_sales = filtered_df['sales'].sum()
 total_profit = filtered_df['profit'].sum()
 orders = filtered_df.shape[0]
 
-sales_change = ((total_sales-prev_sales)/prev_sales)*100
-profit_change = ((total_profit-prev_profit)/prev_profit)*100
-
 c1,c2,c3 = st.columns(3)
 
-c1.metric("💰 Sales", int(total_sales), f"{sales_change:.2f}%")
-c2.metric("📈 Profit", int(total_profit), f"{profit_change:.2f}%")
+c1.metric("💰 Sales", int(total_sales))
+c2.metric("📈 Profit", int(total_profit))
 c3.metric("📦 Orders", orders)
 
 st.markdown("---")
@@ -82,9 +73,6 @@ profit_r = chart_df.groupby('region')['profit'].sum().reset_index()
 merged = sales_r.merge(profit_r,on='region')
 
 fig = px.line(merged,x='region',y=['sales','profit'],markers=True)
-fig.update_layout(template="plotly_dark",
-                  paper_bgcolor="rgba(0,0,0,0)",
-                  plot_bgcolor="rgba(0,0,0,0)")
 st.plotly_chart(fig,use_container_width=True)
 
 # ---------------- MONTHLY ----------------
@@ -93,9 +81,6 @@ st.subheader("📈 Monthly Trend")
 monthly = filtered_df.groupby('month')['sales'].sum().reset_index()
 
 fig = px.line(monthly,x='month',y='sales',markers=True)
-fig.update_layout(template="plotly_dark",
-                  paper_bgcolor="rgba(0,0,0,0)",
-                  plot_bgcolor="rgba(0,0,0,0)")
 st.plotly_chart(fig,use_container_width=True)
 
 # ---------------- FORECAST ----------------
@@ -112,64 +97,51 @@ if len(monthly_full) > 3:
 
     forecast_df = pd.DataFrame({'month':[13,14,15],'forecast':pred})
 
-    monthly_full['type'] = "Actual"
-    forecast_df['type'] = "Forecast"
-
-    combined = pd.concat([
-        monthly_full.rename(columns={'sales':'value'}),
-        forecast_df.rename(columns={'forecast':'value'})
-    ])
-
-    fig = px.line(combined,x='month',y='value',color='type',markers=True)
-    fig.update_layout(template="plotly_dark",
-                      paper_bgcolor="rgba(0,0,0,0)",
-                      plot_bgcolor="rgba(0,0,0,0)")
+    fig = px.line(forecast_df,x='month',y='forecast',markers=True)
     st.plotly_chart(fig,use_container_width=True)
 else:
     st.warning("Not enough data")
 
-# ---------------- INSIGHTS ----------------
-st.subheader("💡 Insights")
+# ---------------- MODEL ----------------
+model_loaded = True
 
-best_region = df.groupby('region')['profit'].sum().idxmax()
-worst_region = df.groupby('region')['profit'].sum().idxmin()
-
-st.success(f"Best Region: {best_region}")
-st.error(f"Worst Region: {worst_region}")
-
-# ---------------- MODEL LOAD ----------------
-model = joblib.load(model_path)
-cols = joblib.load(cols_path)
+if os.path.exists(model_path) and os.path.exists(cols_path):
+    model = joblib.load(model_path)
+    cols = joblib.load(cols_path)
+else:
+    st.warning("⚠️ Model not found")
+    model_loaded = False
 
 # ---------------- FEATURE ----------------
-st.subheader("🧠 Feature Importance")
+if model_loaded:
+    st.subheader("🧠 Feature Importance")
 
-imp = pd.Series(model.feature_importances_,index=cols).sort_values()
+    imp = pd.Series(model.feature_importances_,index=cols).sort_values()
 
-fig = px.bar(imp,orientation='h')
-fig.update_layout(template="plotly_dark",
-                  paper_bgcolor="rgba(0,0,0,0)",
-                  plot_bgcolor="rgba(0,0,0,0)")
-st.plotly_chart(fig,use_container_width=True)
+    fig = px.bar(imp,orientation='h')
+    st.plotly_chart(fig,use_container_width=True)
 
 # ---------------- AI ----------------
 st.subheader("🤖 AI Prediction")
 
-c1,c2,c3 = st.columns(3)
+if model_loaded:
+    c1,c2,c3 = st.columns(3)
 
-month = c1.slider("Month",1,12,5)
-profit = c2.number_input("Profit",100.0)
-discount = c3.number_input("Discount",0.1)
+    month = c1.slider("Month",1,12,5)
+    profit = c2.number_input("Profit",100.0)
+    discount = c3.number_input("Discount",0.1)
 
-input_df = pd.DataFrame({
-    'month':[month],
-    'year':[2023],
-    'profit':[profit],
-    'discount':[discount]
-})
+    input_df = pd.DataFrame({
+        'month':[month],
+        'year':[2023],
+        'profit':[profit],
+        'discount':[discount]
+    })
 
-input_df = input_df.reindex(columns=cols,fill_value=0)
+    input_df = input_df.reindex(columns=cols,fill_value=0)
 
-if st.button("Predict"):
-    result = model.predict(input_df)
-    st.success(f"Predicted Sales: {result[0]:.2f}")  
+    if st.button("Predict"):
+        result = model.predict(input_df)
+        st.success(f"Predicted Sales: {result[0]:.2f}")
+else:
+    st.info("Prediction disabled")   
