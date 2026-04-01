@@ -32,6 +32,10 @@ model_path = os.path.join(BASE_DIR, "model", "xgb_sales_model.pkl")
 cols_path = os.path.join(BASE_DIR, "model", "model_columns.pkl")
 
 # ---------------- DATA ----------------
+if not os.path.exists(data_path):
+    st.error("❌ sales_data.csv not found in repo")
+    st.stop()
+
 df = pd.read_csv(data_path, encoding='latin1')
 
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
@@ -50,14 +54,20 @@ filtered_df = df[(df['region']==region) & (df['category']==category)]
 st.caption(f"📍 {region} | {category}")
 
 # ---------------- KPI ----------------
+prev_sales = df['sales'].sum() * 0.9
+prev_profit = df['profit'].sum() * 0.9
+
 total_sales = filtered_df['sales'].sum()
 total_profit = filtered_df['profit'].sum()
 orders = filtered_df.shape[0]
 
+sales_change = ((total_sales-prev_sales)/prev_sales)*100
+profit_change = ((total_profit-prev_profit)/prev_profit)*100
+
 c1,c2,c3 = st.columns(3)
 
-c1.metric("💰 Sales", int(total_sales))
-c2.metric("📈 Profit", int(total_profit))
+c1.metric("💰 Sales", int(total_sales), f"{sales_change:.2f}%")
+c2.metric("📈 Profit", int(total_profit), f"{profit_change:.2f}%")
 c3.metric("📦 Orders", orders)
 
 st.markdown("---")
@@ -102,22 +112,21 @@ if len(monthly_full) > 3:
 else:
     st.warning("Not enough data")
 
-# ---------------- MODEL ----------------
+# ---------------- MODEL SAFE LOAD ----------------
 model_loaded = True
 
-if os.path.exists(model_path) and os.path.exists(cols_path):
+if not os.path.exists(model_path) or not os.path.exists(cols_path):
+    st.warning("⚠️ Model files not found in deployment")
+    model_loaded = False
+else:
     model = joblib.load(model_path)
     cols = joblib.load(cols_path)
-else:
-    st.warning("⚠️ Model not found")
-    model_loaded = False
 
 # ---------------- FEATURE ----------------
 if model_loaded:
     st.subheader("🧠 Feature Importance")
 
     imp = pd.Series(model.feature_importances_,index=cols).sort_values()
-
     fig = px.bar(imp,orientation='h')
     st.plotly_chart(fig,use_container_width=True)
 
@@ -144,4 +153,4 @@ if model_loaded:
         result = model.predict(input_df)
         st.success(f"Predicted Sales: {result[0]:.2f}")
 else:
-    st.info("Prediction disabled")   
+    st.info("Prediction disabled (model missing)")  
